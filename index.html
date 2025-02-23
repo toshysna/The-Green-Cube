@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Mon Jeu 3D - Ammo.js, Contrôles et Plateformes Multiples</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      #instructions {
+        position: absolute;
+        top: 50%;
+        width: 100%;
+        text-align: center;
+        color: white;
+        font-family: Arial, sans-serif;
+        font-size: 24px;
+        user-select: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="instructions">Cliquez pour activer le pointer lock</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="./libs/ammo.js"></script>
+    <script>
+      Ammo()
+        .then(function (AmmoLib) {
+          let yaw = 0;
+          const sensitivity = 0.002;
+          let jumpKeyHeld = false;
+          const scene = new THREE.Scene();
+          scene.background = new THREE.Color(0x000000);
+          const camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+          );
+          const renderer = new THREE.WebGLRenderer();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+          document.body.appendChild(renderer.domElement);
+          // 2. Initialisation du monde physique Ammo.js
+          const collisionConfiguration =
+            new Ammo.btDefaultCollisionConfiguration();
+          const dispatcher = new Ammo.btCollisionDispatcher(
+            collisionConfiguration
+          );
+          const broadphase = new Ammo.btDbvtBroadphase();
+          const solver = new Ammo.btSequentialImpulseConstraintSolver();
+          const physicsWorld = new Ammo.btDiscreteDynamicsWorld(
+            dispatcher,
+            broadphase,
+            solver,
+            collisionConfiguration
+          );
+          physicsWorld.setGravity(new Ammo.btVector3(0, -9.82, 0));
+          function createRigidBody(threeObject, physicsShape, mass, pos, quat) {
+            threeObject.position.copy(pos);
+            threeObject.quaternion.copy(quat);
+            const transform = new Ammo.btTransform();
+            transform.setIdentity();
+            transform.setOrigin(new Ammo.btVector3(pos.x, pos.y, pos.z));
+            transform.setRotation(
+              new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w)
+            );
+            const motionState = new Ammo.btDefaultMotionState(transform);
+            const localInertia = new Ammo.btVector3(0, 0, 0);
+            physicsShape.calculateLocalInertia(mass, localInertia);
+            const rbInfo = new Ammo.btRigidBodyConstructionInfo(
+              mass,
+              motionState,
+              physicsShape,
+              localInertia
+            );
+            const body = new Ammo.btRigidBody(rbInfo);
+            threeObject.userData.physicsBody = body;
+            scene.add(threeObject);
+            physicsWorld.addRigidBody(body);
+            return body;
+          }
+          const playerSize = 1;
+          const playerGeometry = new THREE.BoxGeometry(
+            playerSize,
+            playerSize,
+            playerSize
+          );
+          const playerMaterial = new THREE.MeshPhongMaterial({
+            color: 0x00ff00,
+          });
+          const playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
+          const playerPos = new THREE.Vector3(0, 0.5, 0);
+          const playerQuat = new THREE.Quaternion(0, 0, 0, 1);
+          const playerShape = new Ammo.btBoxShape(
+            new Ammo.btVector3(playerSize / 2, playerSize / 2, playerSize / 2)
+          );
+          const playerMass = 1;
+          const playerBody = createRigidBody(
+            playerMesh,
+            playerShape,
+            playerMass,
+            playerPos,
+            playerQuat
+          );
+          playerBody.setActivationState(4);
+          playerBody.setFriction(0.1);
+          playerBody.setDamping(0.2, 0.2);
+          playerBody.setRestitution(0.0);
+          playerBody.setCcdMotionThreshold(0.1);
+          playerBody.setCcdSweptSphereRadius(0.4);
+          const groundSize = { width: 20, height: 1, depth: 20 };
+          const groundGeometry = new THREE.BoxGeometry(
+            groundSize.width,
+            groundSize.height,
+            groundSize.depth
+          );
+          const groundMaterial = new THREE.MeshPhongMaterial({
+            color: 0x888888,
+          });
+          const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
+          const groundPos = new THREE.Vector3(0, -0.5, 0);
+          const groundQuat = new THREE.Quaternion(0, 0, 0, 1);
+          const groundShape = new Ammo.btBoxShape(
+            new Ammo.btVector3(
+              groundSize.width / 2,
+              groundSize.height / 2,
+              groundSize.depth / 2
+            )
+          );
+          const groundMass = 0;
+          createRigidBody(
+            groundMesh,
+            groundShape,
+            groundMass,
+            groundPos,
+            groundQuat
+          );
+          const platform1Geometry = new THREE.BoxGeometry(3, 0.5, 3);
+          const platform1Material = new THREE.MeshPhongMaterial({
+            color: 0x444444,
+          });
+          const platform1Mesh = new THREE.Mesh(
+            platform1Geometry,
+            platform1Material
+          );
+          const platform1Pos = new THREE.Vector3(2, 0.5, -2);
+          const platform1Quat = new THREE.Quaternion(0, 0, 0, 1);
+          const platform1Shape = new Ammo.btBoxShape(
+            new Ammo.btVector3(3 / 2, 0.5 / 2, 3 / 2)
+          );
+          const platform1Mass = 0;
+          createRigidBody(
+            platform1Mesh,
+            platform1Shape,
+            platform1Mass,
+            platform1Pos,
+            platform1Quat
+          );
+          const platform2Geometry = new THREE.BoxGeometry(4, 0.5, 2);
+          const platform2Material = new THREE.MeshPhongMaterial({
+            color: 0x333333,
+          });
+          const platform2Mesh = new THREE.Mesh(
+            platform2Geometry,
+            platform2Material
+          );
+          const platform2Pos = new THREE.Vector3(-6, 3, 3);
+          const platform2Quat = new THREE.Quaternion(0, 0, 0, 1);
+          const platform2Shape = new Ammo.btBoxShape(
+            new Ammo.btVector3(4 / 2, 0.5 / 2, 2 / 2)
+          );
+          const platform2Mass = 0;
+          createRigidBody(
+            platform2Mesh,
+            platform2Shape,
+            platform2Mass,
+            platform2Pos,
+            platform2Quat
+          );
+          const platform3Geometry = new THREE.BoxGeometry(2, 0.5, 4);
+          const platform3Material = new THREE.MeshPhongMaterial({
+            color: 0x555555,
+          });
+          const platform3Mesh = new THREE.Mesh(
+            platform3Geometry,
+            platform3Material
+          );
+          const platform3Pos = new THREE.Vector3(-2, 2, 0);
+          const platform3Quat = new THREE.Quaternion(0, 0, 0, 1);
+          const platform3Shape = new Ammo.btBoxShape(
+            new Ammo.btVector3(2 / 2, 0.5 / 2, 4 / 2)
+          );
+          const platform3Mass = 0;
+          createRigidBody(
+            platform3Mesh,
+            platform3Shape,
+            platform3Mass,
+            platform3Pos,
+            platform3Quat
+          );
+          const light = new THREE.DirectionalLight(0xffffff, 1);
+          light.position.set(10, 10, 5);
+          scene.add(light);
+          const keys = {};
+          document.addEventListener("keydown", (event) => {
+            keys[event.code] = true;
+          });
+          document.addEventListener("keyup", (event) => {
+            keys[event.code] = false;
+          });
+          window.addEventListener("blur", () => {
+            for (let k in keys) {
+              keys[k] = false;
+            }
+          });
+          document.body.addEventListener("click", function () {
+            renderer.domElement.requestPointerLock();
+          });
+          document.addEventListener("pointerlockchange", function () {
+            const instr = document.getElementById("instructions");
+            if (document.pointerLockElement === renderer.domElement) {
+              console.log("Pointer lock activé");
+              if (instr) instr.style.display = "none";
+            } else {
+              console.log("Pointer lock désactivé");
+              if (instr) instr.style.display = "";
+            }
+          });
+          document.addEventListener("mousemove", (event) => {
+            if (document.pointerLockElement === renderer.domElement) {
+              yaw -= event.movementX * sensitivity;
+            }
+          });
+          function animate() {
+            requestAnimationFrame(animate);
+            const speed = 5;
+            let localInput = new THREE.Vector3(0, 0, 0);
+            if (keys["ArrowUp"] || keys["KeyW"]) {
+              localInput.z -= 1;
+            }
+            if (keys["ArrowDown"] || keys["KeyS"]) {
+              localInput.z += 1;
+            }
+            if (keys["ArrowLeft"] || keys["KeyA"]) {
+              localInput.x -= 1;
+            }
+            if (keys["ArrowRight"] || keys["KeyD"]) {
+              localInput.x += 1;
+            }
+            if (localInput.length() > 0) {
+              localInput.normalize();
+            }
+            localInput.multiplyScalar(speed);
+            let worldInput = localInput
+              .clone()
+              .applyQuaternion(playerMesh.quaternion);
+            let currentVelY = playerBody.getLinearVelocity().y();
+            let newVelY = currentVelY;
+            if (keys["Space"] && Math.abs(currentVelY) < 0.1 && !jumpKeyHeld) {
+              newVelY = 5;
+              jumpKeyHeld = true;
+            }
+            if (!keys["Space"]) {
+              jumpKeyHeld = false;
+            }
+            const newVelocity = new Ammo.btVector3(
+              worldInput.x,
+              newVelY,
+              worldInput.z
+            );
+            playerBody.setLinearVelocity(newVelocity);
+            physicsWorld.stepSimulation(1 / 60, 10);
+            {
+              const ms = playerBody.getMotionState();
+              if (ms) {
+                const transform = new Ammo.btTransform();
+                ms.getWorldTransform(transform);
+                const p = transform.getOrigin();
+                playerMesh.position.set(p.x(), p.y(), p.z());
+              }
+            }
+            const visualQuat = new THREE.Quaternion();
+            visualQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+            playerMesh.quaternion.copy(visualQuat);
+            const cameraLocalOffset = new THREE.Vector3(0, 3, 7);
+            const rotatedOffset = cameraLocalOffset
+              .clone()
+              .applyQuaternion(playerMesh.quaternion);
+            camera.position.copy(playerMesh.position).add(rotatedOffset);
+            camera.lookAt(playerMesh.position);
+            renderer.render(scene, camera);
+          }
+          animate();
+        })
+        .catch(function (error) {
+          console.error("Erreur lors du chargement d'Ammo.js :", error);
+        });
+    </script>
+  </body>
+</html>
