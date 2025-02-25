@@ -2,7 +2,7 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <title>Mon Jeu 3D - Ammo.js, Contrôles et Plateformes Multiples</title>
+    <title>Mon Jeu 3D - Ammo.js, Contrôles, Caméra Orbitale</title>
     <style>
       body {
         margin: 0;
@@ -27,9 +27,12 @@
     <script>
       Ammo()
         .then(function (AmmoLib) {
-          let yaw = 0;
+          // On définit deux variables de rotation :
+          let cameraYaw = 0; // La rotation actuelle de la caméra autour du joueur (mise à jour par la souris)
+          let playerYaw = 0; // L'orientation actuelle du joueur
           const sensitivity = 0.002;
           let jumpKeyHeld = false;
+
           const scene = new THREE.Scene();
           scene.background = new THREE.Color(0x000000);
           const camera = new THREE.PerspectiveCamera(
@@ -41,6 +44,7 @@
           const renderer = new THREE.WebGLRenderer();
           renderer.setSize(window.innerWidth, window.innerHeight);
           document.body.appendChild(renderer.domElement);
+
           // 2. Initialisation du monde physique Ammo.js
           const collisionConfiguration =
             new Ammo.btDefaultCollisionConfiguration();
@@ -56,6 +60,7 @@
             collisionConfiguration
           );
           physicsWorld.setGravity(new Ammo.btVector3(0, -9.82, 0));
+
           function createRigidBody(threeObject, physicsShape, mass, pos, quat) {
             threeObject.position.copy(pos);
             threeObject.quaternion.copy(quat);
@@ -80,6 +85,7 @@
             physicsWorld.addRigidBody(body);
             return body;
           }
+
           const playerSize = 1;
           const playerGeometry = new THREE.BoxGeometry(
             playerSize,
@@ -109,6 +115,7 @@
           playerBody.setRestitution(0.0);
           playerBody.setCcdMotionThreshold(0.1);
           playerBody.setCcdSweptSphereRadius(0.4);
+
           const groundSize = { width: 20, height: 1, depth: 20 };
           const groundGeometry = new THREE.BoxGeometry(
             groundSize.width,
@@ -136,6 +143,7 @@
             groundPos,
             groundQuat
           );
+
           const platform1Geometry = new THREE.BoxGeometry(3, 0.5, 3);
           const platform1Material = new THREE.MeshPhongMaterial({
             color: 0x444444,
@@ -157,6 +165,7 @@
             platform1Pos,
             platform1Quat
           );
+
           const platform2Geometry = new THREE.BoxGeometry(4, 0.5, 2);
           const platform2Material = new THREE.MeshPhongMaterial({
             color: 0x333333,
@@ -178,6 +187,7 @@
             platform2Pos,
             platform2Quat
           );
+
           const platform3Geometry = new THREE.BoxGeometry(2, 0.5, 4);
           const platform3Material = new THREE.MeshPhongMaterial({
             color: 0x555555,
@@ -199,9 +209,11 @@
             platform3Pos,
             platform3Quat
           );
+
           const light = new THREE.DirectionalLight(0xffffff, 1);
           light.position.set(10, 10, 5);
           scene.add(light);
+
           const keys = {};
           document.addEventListener("keydown", (event) => {
             keys[event.code] = true;
@@ -214,24 +226,25 @@
               keys[k] = false;
             }
           });
+
           document.body.addEventListener("click", function () {
             renderer.domElement.requestPointerLock();
           });
           document.addEventListener("pointerlockchange", function () {
             const instr = document.getElementById("instructions");
             if (document.pointerLockElement === renderer.domElement) {
-              console.log("Pointer lock activé");
               if (instr) instr.style.display = "none";
             } else {
-              console.log("Pointer lock désactivé");
               if (instr) instr.style.display = "";
             }
           });
           document.addEventListener("mousemove", (event) => {
             if (document.pointerLockElement === renderer.domElement) {
-              yaw -= event.movementX * sensitivity;
+              // Toujours mettre à jour le cameraYaw
+              cameraYaw -= event.movementX * sensitivity;
             }
           });
+
           function animate() {
             requestAnimationFrame(animate);
             const speed = 5;
@@ -250,8 +263,8 @@
             }
             if (localInput.length() > 0) {
               localInput.normalize();
+              localInput.multiplyScalar(speed);
             }
-            localInput.multiplyScalar(speed);
             let worldInput = localInput
               .clone()
               .applyQuaternion(playerMesh.quaternion);
@@ -280,13 +293,23 @@
                 playerMesh.position.set(p.x(), p.y(), p.z());
               }
             }
-            const visualQuat = new THREE.Quaternion();
-            visualQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
-            playerMesh.quaternion.copy(visualQuat);
+            // Si un déplacement est effectué, synchroniser la rotation du joueur avec la cameraYaw
+            if (localInput.length() > 0) {
+              playerYaw = cameraYaw;
+              const visualQuat = new THREE.Quaternion();
+              visualQuat.setFromAxisAngle(
+                new THREE.Vector3(0, 1, 0),
+                playerYaw
+              );
+              playerMesh.quaternion.copy(visualQuat);
+            }
+            // La caméra utilise toujours le cameraYaw pour son orbite
             const cameraLocalOffset = new THREE.Vector3(0, 3, 7);
+            const orbitQuat = new THREE.Quaternion();
+            orbitQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), cameraYaw);
             const rotatedOffset = cameraLocalOffset
               .clone()
-              .applyQuaternion(playerMesh.quaternion);
+              .applyQuaternion(orbitQuat);
             camera.position.copy(playerMesh.position).add(rotatedOffset);
             camera.lookAt(playerMesh.position);
             renderer.render(scene, camera);
